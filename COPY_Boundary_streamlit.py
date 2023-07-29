@@ -276,8 +276,8 @@ if st.button('Plot'):
         # add marker at the centroid of the polygon
         # folium.Marker(location=centroid_coordinates, popup='Centroid').add_to(m)
         
-        # folium_static(m)
-        st_data = st_folium(m, width=725)
+        folium_static(m)
+        # st_data = st_folium(m, width=725)
 
         if coordinates is not None:
             st.text("Geometry:")
