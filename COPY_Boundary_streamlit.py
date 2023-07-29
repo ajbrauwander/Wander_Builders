@@ -230,8 +230,9 @@ def get_additional_details():
 
     # Display amenities counts
     amenities = ['camp_site', 'school', 'bus_stop', 'hospital', 'hotel', 'motel', 'bar', 'biergarten', 'cafe', 'fast_food', 'food_court', 'ice_cream', 
-                 'pub', 'community_centre', 'events_venue', 'social_centre', 'police', 'ranger_station', 'drinking_water', 'dog_toilet', 'shelter',
-                 'telephone', 'toilets', 'animal_boarding', 'childcare', 'hunting_stand']
+                #  'pub', 'community_centre', 'events_venue', 'social_centre', 'police', 'ranger_station', 'drinking_water', 'dog_toilet', 'shelter',
+                #  'telephone', 'toilets', 'animal_boarding', 'childcare', 'hunting_stand'
+                 ]
     
     amenities_counts = get_amenities_counts(multipolygon, amenities)
     st.sidebar.markdown("<h1 style='color: red;'>Amenities Counts</h1>", unsafe_allow_html=True)
