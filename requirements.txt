@@ -1,4 +1,4 @@
-streamlit==1.2.0
+streamlit==1.13.0
 matplotlib==3.5.1
 geopandas==0.10.2
 osmnx==1.1.1
