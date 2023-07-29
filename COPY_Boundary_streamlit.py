@@ -202,6 +202,21 @@ def get_geometry(address):
     
     return coordinates, multipolygon
 
+def plot_polygon(coordinates, multipolygon):
+    fig, ax = plt.subplots()
+
+    # Plot polygon
+    polygon_gdf = gpd.GeoDataFrame(index=[0], geometry=[multipolygon])
+    polygon_gdf.plot(ax=ax, color='blue')
+
+    # Plot centroid
+    centroid = multipolygon.centroid
+    ax.plot(centroid.x, centroid.y, 'ro')
+
+    plt.title('Polygon')
+    st.pyplot(fig)
+    
+
 # Function to get counts of street types
 def get_street_counts(G):
     edges = ox.graph_to_gdfs(G, nodes=False, edges=True)
@@ -262,27 +277,9 @@ multipolygon = None
 if st.button('Plot'):
     try:
         coordinates, multipolygon = get_geometry(address)
-        
-        # Calculate the centroid of the polygon
-        centroid = multipolygon.centroid
-        centroid_coordinates = [centroid.y, centroid.x]
-        
-        # create folium map centered at the centroid of the polygon
-        m = folium.Map(location=centroid_coordinates, zoom_start=9)
-        # create polygon
-        polygon = folium.Polygon(locations=[[coord[1], coord[0]] for coord in coordinates], color='blue', fill=True)
-        polygon.add_to(m)
-        
-        # add marker at the centroid of the polygon
-        # folium.Marker(location=centroid_coordinates, popup='Centroid').add_to(m)
-        
-        # folium_static(m)
-        st_folium(m)
-
-        if coordinates is not None:
-            st.text("Geometry:")
-            st.text_area("", value=str(coordinates), height=150)
-
+        plot_polygon(coordinates, multipolygon)
+        st.text("Geometry:")
+        st.text_area("", value=str(coordinates), height=150)
         st.session_state['multipolygon'] = multipolygon
 
     except Exception as e:
