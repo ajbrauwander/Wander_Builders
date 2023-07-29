@@ -182,6 +182,7 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 from matplotlib import style
 from streamlit_folium import folium_static
+from streamlit_folium import st_folium
 import folium
 import pandas as pd
 
@@ -275,7 +276,8 @@ if st.button('Plot'):
         # add marker at the centroid of the polygon
         # folium.Marker(location=centroid_coordinates, popup='Centroid').add_to(m)
         
-        folium_static(m)
+        # folium_static(m)
+        st_data = st_folium(m, width=725)
 
         if coordinates is not None:
             st.text("Geometry:")
