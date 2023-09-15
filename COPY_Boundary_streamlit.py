@@ -194,22 +194,33 @@ def convert_kml_to_geojson():
     if uploaded_file:
         geojson_data = kml_to_geojson(uploaded_file)
         
-        # Extract base name from uploaded file name
+        # Extract file name without .kml extension
         base_name = os.path.splitext(uploaded_file.name)[0]
-        output_file_name = base_name + ".geojson"
         
-        # Convert GeoJSON data to a string
+        # Add the 'name' property to each feature in the GeoJSON data
+        for feature in geojson_data["features"]:
+            feature["properties"]["name"] = base_name
+        
+        # Convert GeoJSON data to a string and then encode it
         geojson_str = json.dumps(geojson_data)
+        geojson_bytes = geojson_str.encode('utf-8')
+        
+        # Use BytesIO to hold the byte data
+        buffer = BytesIO()
+        buffer.write(geojson_bytes)
+        buffer.seek(0)
         
         # Create a download link for the GeoJSON data
+        output_file_name = base_name + ".geojson"
         st.markdown(
             f"<a href='data:application/json;charset=utf-8;,{geojson_str}' download='{output_file_name}'>Click here to download the GeoJSON file</a>",
             unsafe_allow_html=True
         )
-
+        
     if st.button('Back to Home'):
         st.session_state.operation = None
         st.experimental_rerun()
+
 
 def display_boundary_page():
     def get_geometry(address):
