@@ -262,8 +262,7 @@ def bulk_pois_processing():
     uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
     
     if uploaded_file:
-        all_sheets = pd.read_excel(uploaded_file, sheet_name=None, engine='xlrd')
-
+        all_sheets = pd.read_excel(uploaded_file, sheet_name=None)
 
         for sheet_name, df in all_sheets.items():
             st.write(f"Processing sheet: {sheet_name}")
