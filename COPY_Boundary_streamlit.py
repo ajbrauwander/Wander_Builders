@@ -194,7 +194,7 @@ def display_boundary_page():
         ax1.set_title('Distribution of Street Types')
         st.pyplot(fig1)
 
-    st.title('Wander Builders')
+    st.title('Get Boundary')
     address = st.text_input("Enter an address:")
 
     coordinates = None
