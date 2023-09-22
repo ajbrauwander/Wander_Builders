@@ -10,7 +10,11 @@ from matplotlib import style
 # from streamlit_folium import folium_static
 # from streamlit_folium import st_folium
 # import folium
+import base64
 import pandas as pd
+import time
+from shapely.geometry import Point
+
 
 # Function to extract coordinates from KML
 def extract_coordinates(coordinates):
@@ -217,23 +221,118 @@ def display_boundary_page():
         st.session_state.operation = None
         st.experimental_rerun()
 
+# def main():
+#     st.title("Wander Builders")
+    
+#     # Check if the operation is already chosen, if not, display the landing page
+#     if 'operation' not in st.session_state or st.session_state.operation is None:
+#         if st.button('Get Boundary'):
+#             st.session_state.operation = 'boundary'
+#             st.experimental_rerun()
+#         elif st.button('Convert KML to GeoJSON'):
+#             st.session_state.operation = 'kml_conversion'
+#             st.experimental_rerun()
+#     else:
+#         if st.session_state.operation == 'boundary':
+#             display_boundary_page()
+#         elif st.session_state.operation == 'kml_conversion':
+#             convert_kml_to_geojson()
+
+# if __name__ == "__main__":
+#     main()
+
+def is_lat_lon(value):
+    try:
+        lat, lon = map(float, value.split(','))
+        return True
+    except:
+        return False
+    
+def download_link(object_to_download, download_filename, download_link_text):
+    if isinstance(object_to_download, pd.DataFrame):
+        object_to_download = object_to_download.to_csv(index=False)
+
+    # Some strings <-> bytes conversions necessary here
+    b64 = base64.b64encode(object_to_download.encode()).decode()
+    return f'<a href="data:file/txt;base64,{b64}" download="{download_filename}">{download_link_text}</a>'
+
+def bulk_pois_processing():
+    st.header("Bulk POIs Processing")
+    
+    uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
+    
+    if uploaded_file:
+        all_sheets = pd.read_excel(uploaded_file, sheet_name=None)
+
+        for sheet_name, df in all_sheets.items():
+            st.write(f"Processing sheet: {sheet_name}")
+
+            latitudes = []
+            longitudes = []
+    
+            for idx, row in df.iterrows():
+                coords = row['coords']
+        
+                if is_lat_lon(coords):
+                    lat, lon = map(float, coords.split(','))
+                    latitudes.append(lat)
+                    longitudes.append(lon)
+                else:
+                    try:
+                        st.write(f"Geocoding address: {coords}")
+                        lat, lon = ox.geocoder.geocode(coords)
+                        latitudes.append(lat)
+                        longitudes.append(lon)
+                    except Exception as e:
+                        st.write(f"Error geocoding address: {coords}. Error: {str(e)}")
+                        latitudes.append(None)
+                        longitudes.append(None)
+            
+                    # Respect rate limits of the geocoding service
+                    time.sleep(1)
+    
+            df['latitude'] = latitudes
+            df['longitude'] = longitudes
+    
+            # Convert the DataFrame into a GeoDataFrame
+            geometry = [Point(xy) for xy in zip(df['longitude'], df['latitude'])]
+            gdf = gpd.GeoDataFrame(df, geometry=geometry)
+
+            # Save the GeoDataFrame as a GeoJSON file
+            geojson_str = gdf.to_json()
+            
+            # Provide a download link for the GeoJSON data
+            st.markdown(download_link(geojson_str, f"{sheet_name}.geojson", f"Click here to download {sheet_name}.geojson"), unsafe_allow_html=True)
+
+    if st.button('Back to Home'):
+        st.session_state.operation = None
+        st.experimental_rerun()
+
 def main():
     st.title("Wander Builders")
     
-    # Check if the operation is already chosen, if not, display the landing page
-    if 'operation' not in st.session_state or st.session_state.operation is None:
-        if st.button('Get Boundary'):
-            st.session_state.operation = 'boundary'
-            st.experimental_rerun()
-        elif st.button('Convert KML to GeoJSON'):
-            st.session_state.operation = 'kml_conversion'
-            st.experimental_rerun()
+    if "operation" not in st.session_state:
+        st.session_state.operation = None
+    
+    if st.session_state.operation == "boundary":
+        display_boundary_page()
+    elif st.session_state.operation == "convert_kml":
+        convert_kml_to_geojson()
+    elif st.session_state.operation == "bulk_pois":
+        bulk_pois_processing()
     else:
-        if st.session_state.operation == 'boundary':
-            display_boundary_page()
-        elif st.session_state.operation == 'kml_conversion':
-            convert_kml_to_geojson()
+        st.write("Choose Operation")
+        if st.button("Get Boundary"):
+            st.session_state.operation = "boundary"
+            st.experimental_rerun()
+        elif st.button("Convert KML to GeoJSON"):
+            st.session_state.operation = "convert_kml"
+            st.experimental_rerun()
+        elif st.button("Bulk POIs"):
+            st.session_state.operation = "bulk_pois"
+            st.experimental_rerun()
 
 if __name__ == "__main__":
     main()
+
 
