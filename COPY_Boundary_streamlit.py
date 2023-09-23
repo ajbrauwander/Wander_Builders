@@ -221,26 +221,6 @@ def display_boundary_page():
         st.session_state.operation = None
         st.experimental_rerun()
 
-# def main():
-#     st.title("Wander Builders")
-    
-#     # Check if the operation is already chosen, if not, display the landing page
-#     if 'operation' not in st.session_state or st.session_state.operation is None:
-#         if st.button('Get Boundary'):
-#             st.session_state.operation = 'boundary'
-#             st.experimental_rerun()
-#         elif st.button('Convert KML to GeoJSON'):
-#             st.session_state.operation = 'kml_conversion'
-#             st.experimental_rerun()
-#     else:
-#         if st.session_state.operation == 'boundary':
-#             display_boundary_page()
-#         elif st.session_state.operation == 'kml_conversion':
-#             convert_kml_to_geojson()
-
-# if __name__ == "__main__":
-#     main()
-
 def is_lat_lon(value):
     try:
         lat, lon = map(float, value.split(','))
