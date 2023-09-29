@@ -301,18 +301,26 @@ def main():
     elif st.session_state.operation == "bulk_pois":
         bulk_pois_processing()
     else:
-        st.write("Choose Operation")
-        if st.button("Get Boundary"):
-            st.session_state.operation = "boundary"
-            st.experimental_rerun()
-        elif st.button("Convert KML to GeoJSON"):
-            st.session_state.operation = "convert_kml"
-            st.experimental_rerun()
-        elif st.button("Bulk POIs"):
-            st.session_state.operation = "bulk_pois"
-            st.experimental_rerun()
+        st.write("Choose Operation from the Sidebar")
+
+        # Create buttons in the sidebar
+        with st.sidebar:
+            if st.button("Get Boundary"):
+                st.session_state.operation = "boundary"
+                st.experimental_rerun()
+
+            if st.button("Convert KML to GeoJSON"):
+                st.session_state.operation = "convert_kml"
+                st.experimental_rerun()
+
+            if st.button("Bulk POIs"):
+                st.session_state.operation = "bulk_pois"
+                st.experimental_rerun()
 
 if __name__ == "__main__":
     main()
+
+
+
 
 
