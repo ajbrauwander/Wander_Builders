@@ -14,6 +14,9 @@ import base64
 import pandas as pd
 import time
 from shapely.geometry import Point
+import random
+from shapely.geometry import MultiLineString, LineString
+
 
 
 # Function to extract coordinates from KML
@@ -77,20 +80,67 @@ def kml_to_geojson(kml_path):
 
     return geojson
 
+###################
+def make_random_changes_from_file(gdf, tolerance=0.000007):
+    """
+    Modify the LineString or MultiLineString geometry in the given GeoDataFrame.
+    
+    Parameters:
+        gdf (GeoDataFrame): Input GeoDataFrame.
+        tolerance (float): Amount by which to randomly alter each coordinate.
+        
+    Returns:
+        GeoDataFrame: Modified GeoDataFrame.
+    """
+
+    def is_linestring_or_multilinestring(geom):
+        return isinstance(geom, (LineString, MultiLineString))
+
+    # Filter rows where the geometry is LineString or MultiLineString
+    lines = gdf[gdf.geometry.apply(is_linestring_or_multilinestring)]
+
+    # If there are no LineString or MultiLineString geometries, return the original GeoDataFrame
+    if lines.shape[0] == 0:
+        return gdf
+
+    modified_geoms = []
+    for geometry in lines.geometry:
+        if isinstance(geometry, LineString):
+            coords = list(geometry.coords)
+            modified_coords = [(x + random.uniform(-tolerance, tolerance), y + random.uniform(-tolerance, tolerance)) for x, y in coords]
+            modified_geoms.append(LineString(modified_coords))
+        elif isinstance(geometry, MultiLineString):
+            modified_multiline_coords = []
+            for linestring in geometry:
+                coords = list(linestring.coords)
+                modified_coords = [(x + random.uniform(-tolerance, tolerance), y + random.uniform(-tolerance, tolerance)) for x, y in coords]
+                modified_multiline_coords.append(modified_coords)
+            modified_geoms.append(MultiLineString(modified_multiline_coords))
+
+    # Update the geometry column in the filtered rows
+    gdf.loc[lines.index, 'geometry'] = modified_geoms
+
+    return gdf
+################
+
 def convert_kml_to_geojson():
     st.header("Convert KML to GeoJSON")
 
     uploaded_file = st.file_uploader("Choose a KML file", type="kml")
     if uploaded_file:
         geojson_data = kml_to_geojson(uploaded_file)
+
+        # Convert the GeoJSON data to a GeoDataFrame
+        gdf = gpd.GeoDataFrame.from_features(geojson_data["features"])
         
-        # Extract file name without .kml extension
-        base_name = os.path.splitext(uploaded_file.name)[0]
+        # Check if the geometry type is LineString or MultiLineString
+        if any(gdf["geometry"].geom_type.isin(["LineString", "MultiLineString"])):
+            # Alter the geometry with the provided function
+            gdf = make_random_changes_from_file(gdf)
         
-        # Add the 'name' property to each feature in the GeoJSON data
-        for feature in geojson_data["features"]:
-            feature["properties"]["name"] = base_name
-        
+        # Convert the modified GeoDataFrame back to GeoJSON
+        geojson_data = json.loads(gdf.to_json())
+
         # Convert GeoJSON data to a string and then encode it
         geojson_str = json.dumps(geojson_data)
         geojson_bytes = geojson_str.encode('utf-8')
@@ -101,15 +151,15 @@ def convert_kml_to_geojson():
         buffer.seek(0)
         
         # Create a download link for the GeoJSON data
-        output_file_name = base_name + ".geojson"
+        fname = uploaded_file.name.split(".")[0] + ".geojson"
         st.markdown(
-            f"<a href='data:application/json;charset=utf-8;,{geojson_str}' download='{output_file_name}'>Click here to download the GeoJSON file</a>",
+            f"<a href='data:application/json;charset=utf-8;,{geojson_str}' download='{fname}'>Click here to download the modified GeoJSON file</a>",
             unsafe_allow_html=True
         )
-        
     if st.button('Back to Home'):
         st.session_state.operation = None
         st.experimental_rerun()
+
 
 
 def display_boundary_page():
