@@ -288,7 +288,8 @@ def download_link(object_to_download, download_filename, download_link_text):
 
 def bulk_pois_processing():
     st.header("Bulk POIs Processing")
-    
+    st.info("Upload an excel file that has 2 columns, ['name', 'coords'], and the code will create,a single geojson file for every sheet,\
+             to be uploaded to wonder as a Bulk...")
     uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
     
     if uploaded_file:
