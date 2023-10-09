@@ -338,6 +338,54 @@ def bulk_pois_processing():
     if st.button('Back to Home'):
         st.session_state.operation = None
         st.experimental_rerun()
+        
+################
+def search_osm_api():
+    st.sidebar.header("Search OSM API for Trail or Waterway")
+
+    # User Inputs
+    county = st.sidebar.text_input("Enter County (e.g., Glenwood Springs, Colorado, US):")
+    keyword = st.sidebar.text_input("Enter Keyword (optional):")
+    search_type = st.sidebar.radio("Search Type", ["Waterways", "Landroads"])
+    
+    if search_type == "Waterways":
+        custom_filter = '["waterway"~"river|stream|tidal_channel|canal"]'
+    else:
+        custom_filter = '["highway"~"footway|path|cycleway|track"]'
+
+    # Button to start search
+    if st.sidebar.button("Search"):
+        county_graph = ox.graph.graph_from_place(county, custom_filter=custom_filter, retain_all=True)
+        county_nodes, county_edges = ox.graph_to_gdfs(county_graph, nodes=True, edges=True)
+        approximate = county_edges[county_edges['name'].str.contains(f"{keyword}".strip().title(), na=False)]
+        
+        # Display approximate matches
+        matches = approximate.name.unique().tolist()
+        st.write(f"Found {len(matches)} approximate matches:")
+        for m in matches:
+            st.write(m)
+
+        # Allow user to select exact match
+        exact_match = st.selectbox("Select Exact Match:", matches)
+        
+        # Filter and download
+        trail = county_edges[county_edges['name'] == exact_match]
+        
+        if len(trail.name.unique()) == 1:
+            # Save to GeoJSON and provide download link
+            buffer = BytesIO()
+            trail[['geometry', 'name']].iloc[2:-1].dissolve(by='name').to_file(buffer, driver='GeoJSON')
+            buffer.seek(0)
+            st.markdown(get_download_link(buffer, f"{exact_match}.geojson"), unsafe_allow_html=True)
+        else:
+            st.warning("Multiple matches found. Please refine your search.")
+
+def get_download_link(buffer, filename):
+    """Generate a link allowing the data in a given buffer to be downloaded"""
+    b64 = base64.b64encode(buffer.getvalue()).decode()
+    return f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">Download GeoJSON File</a>'
+
+
 
 def main():
     st.title("Wander Builders")
@@ -349,6 +397,8 @@ def main():
         display_boundary_page()
     elif st.session_state.operation == "convert_kml":
         convert_kml_to_geojson()
+    elif st.session_state.operation == "Search OSM API for Trails":
+        search_osm_api()
     elif st.session_state.operation == "bulk_pois":
         bulk_pois_processing()
     else:
@@ -359,11 +409,12 @@ def main():
             if st.button("Get Boundary"):
                 st.session_state.operation = "boundary"
                 st.experimental_rerun()
-
             if st.button("Convert KML to GeoJSON"):
                 st.session_state.operation = "convert_kml"
                 st.experimental_rerun()
-
+            if st.button("Search OSM API for Trails"):
+                st.session_state.operation = "Search_OSM"
+                st.experimental_rerun()
             if st.button("Bulk POIs"):
                 st.session_state.operation = "bulk_pois"
                 st.experimental_rerun()
