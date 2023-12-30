@@ -137,6 +137,12 @@ def convert_kml_to_geojson():
         if any(gdf["geometry"].geom_type.isin(["LineString", "MultiLineString"])):
             # Alter the geometry with the provided function
             gdf = make_random_changes_from_file(gdf)
+
+        # Extract the file name without the extension and keep the spaces
+        file_name_without_extension = os.path.splitext(uploaded_file.name)[0]
+
+        # Add the 'Name' column to the GeoDataFrame
+        gdf['Name'] = file_name_without_extension
         
         # Convert the modified GeoDataFrame back to GeoJSON
         geojson_data = json.loads(gdf.to_json())
@@ -151,14 +157,17 @@ def convert_kml_to_geojson():
         buffer.seek(0)
         
         # Create a download link for the GeoJSON data
-        fname = uploaded_file.name.split(".")[0] + ".geojson"
+        fname = file_name_without_extension + ".geojson"
         st.markdown(
             f"<a href='data:application/json;charset=utf-8;,{geojson_str}' download='{fname}'>Click here to download the modified GeoJSON file</a>",
             unsafe_allow_html=True
         )
+
     if st.button('Back to Home'):
         st.session_state.operation = None
         st.experimental_rerun()
+
+
 
 def display_boundary_page():
     def get_geometry(address):
