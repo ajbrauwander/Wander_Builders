@@ -345,41 +345,89 @@ def bulk_pois_processing():
     if st.button('Back to Home'):
         st.session_state.operation = None
         st.experimental_rerun()
+
+# adding the function for POI's search with osm
+def search_pois():
+    st.header("Search for Points of Interest")
+    
+    # User input for place name or address
+    place_name = st.text_input("Enter a place name or address:")
+    
+    # Search type selection
+    search_type = st.radio("Select Search Type", ["OSM", "Google POIs"])
+    
+    if st.button("Search"):
+        if search_type == "OSM":
+            # Placeholder for OSM search logic resulting in a GeoDataFrame 'gdf'
+            gdf = ox.geometries_from_place(place_name, tags={"amenity":True})
+            # gdf = ...  # Perform actual OSM search here
+            
+            # Dissolve by 'name' to aggregate geometries
+            gdf_dissolved = gdf.dissolve(by='name')[['geometry']].reset_index()
+            gdf_dissolved = gdf_dissolved[gdf_dissolved['geometry'].geom_type == 'Point']
+            
+            # Convert to GeoJSON
+            geojson_str = gdf_dissolved.to_json()
+            
+            # Generate download link
+            b64 = base64.b64encode(geojson_str.encode()).decode()
+            href = f'<a href="data:file/json;base64,{b64}" download="POIs.geojson">Download GeoJSON file</a>'
+            st.markdown(href, unsafe_allow_html=True)
+            
+        elif search_type == "Google POIs":
+            # Placeholder for Google Places API search logic
+            pass  # Implement Google Places API search and follow similar steps as above
+
+    if st.button('Back to Home'):
+        st.session_state.operation = None
+        st.experimental_rerun()
         
 ################
 
 def main():
     st.title("Wander Builders")
     
+    # Define actions for each operation within the app
+    # Function for operation selection
+    def choose_operation():
+        st.write("Choose Operation from the Sidebar")
+        with st.sidebar:
+            if st.button("Get Boundary", key='get_boundary'):
+                st.session_state.operation = "boundary"
+                st.experimental_rerun()
+            elif st.button("Convert KML to GeoJSON", key='convert_kml'):
+                st.session_state.operation = "convert_kml"
+                st.experimental_rerun()
+            # elif st.button("Bulk POIs", key='bulk_pois'):
+            #     st.session_state.operation = "bulk_pois"
+            #     st.experimental_rerun()
+            elif st.button("Search POIs", key='search_pois'):
+                st.session_state.operation = "search_pois"
+                st.experimental_rerun()
+
+    # Initialize session state for selecting operations
     if "operation" not in st.session_state:
         st.session_state.operation = None
-    
+
+    # Operation execution based on selection
     if st.session_state.operation == "boundary":
         display_boundary_page()
     elif st.session_state.operation == "convert_kml":
         convert_kml_to_geojson()
-    elif st.session_state.operation == "bulk_pois":
-        bulk_pois_processing()
-
+    # elif st.session_state.operation == "bulk_pois":
+    #     bulk_pois_processing()
+    elif st.session_state.operation == "search_pois":
+        search_pois()
     else:
-        st.write("Choose Operation from the Sidebar")
+        choose_operation()
 
-        # Create buttons in the sidebar
-        with st.sidebar:
-            if st.button("Get Boundary"):
-                st.session_state.operation = "boundary"
-                st.experimental_rerun()
-            if st.button("Convert KML to GeoJSON"):
-                st.session_state.operation = "convert_kml"
-                st.experimental_rerun()
-            if st.button("Bulk POIs"):
-                st.session_state.operation = "bulk_pois"
-                st.experimental_rerun()
-
+    # Back to Home button to reset the operation
+    # if st.button('Back to Home', key='back_to_home'):
+    #     st.session_state.operation = None
+    #     st.experimental_rerun()
 
 if __name__ == "__main__":
     main()
-
 
 
 
