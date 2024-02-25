@@ -371,7 +371,7 @@ def search_pois():
             
             # Generate download link
             b64 = base64.b64encode(geojson_str.encode()).decode()
-            href = f'<a href="data:file/json;base64,{b64}" download="POIs.geojson">Download GeoJSON file</a>'
+            href = f'<a href="data:file/json;base64,{b64}" download="{place_name}_POIs.geojson">Download GeoJSON file</a>'
             st.markdown(href, unsafe_allow_html=True)
             
         elif search_type == "Google POIs":
