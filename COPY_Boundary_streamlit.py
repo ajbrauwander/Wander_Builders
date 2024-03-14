@@ -18,6 +18,10 @@ import random
 from shapely.geometry import MultiLineString, LineString
 import shutil
 import base64
+import requests
+import time
+
+wander_key = 'AIzaSyD6XxLeRgR8ZiGdKSwayaPEDn2GGkiHOyc'
 
 # Function to extract coordinates from KML
 def extract_coordinates(coordinates):
@@ -285,93 +289,125 @@ def is_lat_lon(value):
     except:
         return False
     
-def download_link(object_to_download, download_filename, download_link_text):
-    if isinstance(object_to_download, pd.DataFrame):
-        object_to_download = object_to_download.to_csv(index=False)
-
-    # Some strings <-> bytes conversions necessary here
-    b64 = base64.b64encode(object_to_download.encode()).decode()
-    return f'<a href="data:file/txt;base64,{b64}" download="{download_filename}">{download_link_text}</a>'
-
-def bulk_pois_processing():
-    st.header("Bulk POIs Processing")
-    st.info("Upload an excel file that has 2 columns, ['name', 'coords'], and the code will create,a single geojson file for every sheet,\
-             to be uploaded to wonder as a Bulk...")
-    uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
+#################
+    # this part of the code is not needed but kept for future reference...
+#################
     
-    if uploaded_file:
-        all_sheets = pd.read_excel(uploaded_file, sheet_name=None)
+# def download_link(object_to_download, download_filename, download_link_text):
+#     if isinstance(object_to_download, pd.DataFrame):
+#         object_to_download = object_to_download.to_csv(index=False)
 
-        for sheet_name, df in all_sheets.items():
-            st.write(f"Processing sheet: {sheet_name}")
+#     # Some strings <-> bytes conversions necessary here
+#     b64 = base64.b64encode(object_to_download.encode()).decode()
+#     return f'<a href="data:file/txt;base64,{b64}" download="{download_filename}">{download_link_text}</a>'
 
-            latitudes = []
-            longitudes = []
+# def bulk_pois_processing():
+#     st.header("Bulk POIs Processing")
+#     st.info("Upload an excel file that has 2 columns, ['name', 'coords'], and the code will create,a single geojson file for every sheet,\
+#              to be uploaded to wonder as a Bulk...")
+#     uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
     
-            for idx, row in df.iterrows():
-                coords = row['coords']
+#     if uploaded_file:
+#         all_sheets = pd.read_excel(uploaded_file, sheet_name=None)
+
+#         for sheet_name, df in all_sheets.items():
+#             st.write(f"Processing sheet: {sheet_name}")
+
+#             latitudes = []
+#             longitudes = []
+    
+#             for idx, row in df.iterrows():
+#                 coords = row['coords']
         
-                if is_lat_lon(coords):
-                    lat, lon = map(float, coords.split(','))
-                    latitudes.append(lat)
-                    longitudes.append(lon)
-                else:
-                    try:
-                        st.write(f"Geocoding address: {coords}")
-                        lat, lon = ox.geocoder.geocode(coords)
-                        latitudes.append(lat)
-                        longitudes.append(lon)
-                    except Exception as e:
-                        st.write(f"Error geocoding address: {coords}. Error: {str(e)}")
-                        latitudes.append(None)
-                        longitudes.append(None)
+#                 if is_lat_lon(coords):
+#                     lat, lon = map(float, coords.split(','))
+#                     latitudes.append(lat)
+#                     longitudes.append(lon)
+#                 else:
+#                     try:
+#                         st.write(f"Geocoding address: {coords}")
+#                         lat, lon = ox.geocoder.geocode(coords)
+#                         latitudes.append(lat)
+#                         longitudes.append(lon)
+#                     except Exception as e:
+#                         st.write(f"Error geocoding address: {coords}. Error: {str(e)}")
+#                         latitudes.append(None)
+#                         longitudes.append(None)
             
-                    # Respect rate limits of the geocoding service
-                    time.sleep(1)
+#                     # Respect rate limits of the geocoding service
+#                     time.sleep(1)
     
-            df['latitude'] = latitudes
-            df['longitude'] = longitudes
+#             df['latitude'] = latitudes
+#             df['longitude'] = longitudes
     
-            # Convert the DataFrame into a GeoDataFrame
-            geometry = [Point(xy) for xy in zip(df['longitude'], df['latitude'])]
-            gdf = gpd.GeoDataFrame(df, geometry=geometry)
+#             # Convert the DataFrame into a GeoDataFrame
+#             geometry = [Point(xy) for xy in zip(df['longitude'], df['latitude'])]
+#             gdf = gpd.GeoDataFrame(df, geometry=geometry)
 
-            # Save the GeoDataFrame as a GeoJSON file
-            geojson_str = gdf.to_json()
+#             # Save the GeoDataFrame as a GeoJSON file
+#             geojson_str = gdf.to_json()
             
-            # Provide a download link for the GeoJSON data
-            st.markdown(download_link(geojson_str, f"{sheet_name}.geojson", f"Click here to download {sheet_name}.geojson"), unsafe_allow_html=True)
+#             # Provide a download link for the GeoJSON data
+#             st.markdown(download_link(geojson_str, f"{sheet_name}.geojson", f"Click here to download {sheet_name}.geojson"), unsafe_allow_html=True)
 
-    if st.button('Back to Home'):
-        st.session_state.operation = None
-        st.experimental_rerun()
+#     if st.button('Back to Home'):
+#         st.session_state.operation = None
+#         st.experimental_rerun()
+    
+####################
+# end of un wanted part
+####################
+    
+#####################
+    # OLD VERSION WITH OSM ONLY
 
-# # adding the function for POI's search with osm
+# Function to search for Points of Interest
 # def search_pois():
 #     st.header("Search for Points of Interest")
 
 #     # User input for place name or address
 #     place_name = st.text_input("Enter a place name or address:")
-    
+
 #     # Search type selection
 #     search_type = st.radio("Select Search Type", ["OSM", "Google POIs"])
-    
+
+#     if search_type == "OSM":
+#         # Define categories and corresponding OSM tags
+#         category_tags = {
+#             "Lodging": [{"tourism": ["hotel", "motel", "guest_house", "hostel"]}],
+#             "Food & Drink": [{"amenity": ["restaurant", "cafe", "pub", "bar"]}],
+#             "Shopping": [{"shop": True}],
+#             "Things To Do": [{"tourism": "attraction"}, {"leisure": ["park", "sports_centre"]}],
+#             "Museums": [{"tourism": "museum"}]
+#         }
+
+#         # Implement the multiselect widget for category selection
+#         selected_categories = st.multiselect(
+#             'Select Categories to Search For:',
+#             options=list(category_tags.keys()),  # Display category names
+#             default=['Food & Drink']  # Default selection
+#         )
+
+#         # Build list of tags based on selected categories
+#         tags = {}
+#         for category in selected_categories:
+#             for tag in category_tags[category]:
+#                 tags.update(tag)
+
 #     if st.button("Search"):
-#         if search_type == "OSM":
-#             # Placeholder for OSM search logic resulting in a GeoDataFrame 'gdf'
-#             gdf = ox.geometries_from_place(place_name, tags={"amenity":True})
-#             # gdf = ...  # Perform actual OSM search here
-            
-#             # Dissolve by 'name' to aggregate geometries
+#         if search_type == "OSM" and place_name:
+#             # Using OSMnx to search for amenities based on selected tags
+#             gdf = ox.geometries_from_place(place_name, tags=tags)
+#             # Dissolve by 'name' to aggregate geometries and filter for Points
 #             gdf_dissolved = gdf.dissolve(by='name')[['geometry']].reset_index()
 #             gdf_dissolved = gdf_dissolved[gdf_dissolved['geometry'].geom_type == 'Point']
-            
+
 #             # Convert to GeoJSON
 #             geojson_str = gdf_dissolved.to_json()
-            
+
 #             # Generate download link
 #             b64 = base64.b64encode(geojson_str.encode()).decode()
-#             href = f'<a href="data:file/json;base64,{b64}" download="{place_name}_POIs.geojson">Download GeoJSON file</a>'
+#             href = f'<a href="data:file/json;base64,{b64}" download="{place_name}_{selected_categories}_POIs.geojson">Download GeoJSON file</a>'
 #             st.markdown(href, unsafe_allow_html=True)
             
 #         elif search_type == "Google POIs":
@@ -381,9 +417,81 @@ def bulk_pois_processing():
 #     if st.button('Back to Home'):
 #         st.session_state.operation = None
 #         st.experimental_rerun()
-        
 
-# Function to search for Points of Interest
+
+################
+
+def download_link(object_to_download, download_filename, download_link_text):
+    """
+    Generates a link to download the given object_to_download.
+    """
+    if isinstance(object_to_download, pd.DataFrame):
+        object_to_download = object_to_download.to_json(orient='records')
+
+    b64 = base64.b64encode(object_to_download.encode()).decode()
+    return f'<a href="data:text/json;base64,{b64}" download="{download_filename}"> {download_link_text} </a>'
+
+def fetch_google_places(api_url, params):
+    all_places = []
+    next_page_token = None
+
+    while True:
+        # Include the next page token in parameters if it exists
+        if next_page_token:
+            params['pagetoken'] = next_page_token
+        else:
+            # Ensure the pagetoken is removed for the first request or after completing pagination
+            params.pop('pagetoken', None)
+
+        # The API requires a short delay before requesting the next page
+        response = requests.get(api_url, params=params)
+        results = response.json()
+
+        all_places.extend(results.get('results', []))
+
+        next_page_token = results.get('next_page_token')
+        if not next_page_token:
+            break  # No more pages to fetch
+        else:
+            # Ensure a short delay before the next request to comply with API requirements
+            time.sleep(2)
+
+    return all_places
+
+
+def search_google_pois(place_name, api_key):
+    API_URL = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
+    NEARBY_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+
+    # Parameters for the initial place search
+    params = {
+        'input': place_name,
+        'inputtype': 'textquery',
+        'fields': 'photos,formatted_address,name,geometry',
+        'key': api_key
+    }
+
+    # Make the initial search to get the location
+    place_response = requests.get(API_URL, params=params).json()
+    if place_response.get("candidates"):
+        location = place_response['candidates'][0]['geometry']['location']
+        
+        # Parameters for nearby search, based on the found location
+        nearby_params = {
+            'location': f"{location['lat']},{location['lng']}",
+            'radius': '10000',
+            'key': api_key
+        }
+        
+        # Fetch all places using the nearby search API endpoint
+        all_places = fetch_google_places(NEARBY_SEARCH_URL, nearby_params)
+        st.write(f"Found {len(all_places)} places from Google")
+        # Process and display the results as needed
+        return all_places
+    else:
+        return []
+
+
 def search_pois():
     st.header("Search for Points of Interest")
 
@@ -432,16 +540,43 @@ def search_pois():
             href = f'<a href="data:file/json;base64,{b64}" download="{place_name}_{selected_categories}_POIs.geojson">Download GeoJSON file</a>'
             st.markdown(href, unsafe_allow_html=True)
             
-        elif search_type == "Google POIs":
-            # Placeholder for Google Places API search logic
-            pass  # Implement Google Places API search and follow similar steps as above
+        elif search_type == "Google POIs" and place_name:
+            places = search_google_pois(place_name, wander_key)
+            if places:
+                # Process places to a GeoJSON format
+                features = [{
+                    "type": "Feature",
+                    "properties": {"name": place.get("name")},
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [place.get("geometry", {}).get("location", {}).get("lng"),
+                                        place.get("geometry", {}).get("location", {}).get("lat")]
+                    }
+                } for place in places]
+
+                geojson = {
+                    "type": "FeatureCollection",
+                    "features": features
+                }
+
+                # Convert to GeoJSON string and encode for download
+                geojson_str = json.dumps(geojson)
+                b64 = base64.b64encode(geojson_str.encode()).decode()
+                href = f'<a href="data:file/json;base64,{b64}" download="{place_name}_Google_POIs.geojson">Download GeoJSON file</a>'
+                st.markdown(href, unsafe_allow_html=True)
+                
+            else:
+                st.write("No POIs found.")
+
+        # OSM search logic remains unchanged
 
     if st.button('Back to Home'):
         st.session_state.operation = None
         st.experimental_rerun()
 
 
-################
+##################
+
 
 def main():
     st.title("Wander Builders")
