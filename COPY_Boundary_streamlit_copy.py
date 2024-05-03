@@ -509,10 +509,11 @@ def search_pois():
                 # Convert each place to a simplified dictionary for CSV conversion
                 places_dicts = [{
                     "Name": place.get("name"),
-                    "Address": place.get("formattedAddress"),
-                    "Status": place.get("businessStatus"),
+                    "Address": place.get("vicinity"),
                     "Type": place.get("types"),
                     "Rating": place.get("rating"),
+                    # "Address": place.get("formattedAddress"),
+                    "Status": place.get("businessStatus"),
                     "User Ratings Total": place.get("userRatingsTotal"),
                     "Price Level": place.get("priceLevel"),
                     "Opening Hours": place.get("openingHours", {}).get("weekday_text"),
@@ -523,7 +524,6 @@ def search_pois():
                     "Google Maps Place ID": place.get("place_id"),
                     "Google Maps Reference": place.get("reference"),
                     "Google Maps Scope": place.get("scope"),
-                    "Vicinity": place.get("vicinity"),
                     "Icon": place.get("icon"),
                     "ID": place.get("id"),
                     "Permanently Closed": place.get("permanentlyClosed"),
