@@ -45,8 +45,8 @@ import json
     # "transit_station", "travel_agency", "university", "veterinary_care", "zoo"]
 
 
-# wander_key = 'AIzaSyD6XxLeRgR8ZiGdKSwayaPEDn2GGkiHOyc'  # Wander
-wander_key = 'AIzaSyCdS1KW3nbLneZ9UXPtPPUGAyxam4hR8YE' # kareem
+wander_key = 'AIzaSyD6XxLeRgR8ZiGdKSwayaPEDn2GGkiHOyc'  # Wander
+
 
 # Function to extract coordinates from KML
 def extract_coordinates(coordinates):
@@ -509,6 +509,28 @@ def search_pois():
                 # Convert each place to a simplified dictionary for CSV conversion
                 places_dicts = [{
                     "Name": place.get("name"),
+                    "Address": place.get("formattedAddress"),
+                    "Status": place.get("businessStatus"),
+                    "Type": place.get("types"),
+                    "Rating": place.get("rating"),
+                    "User Ratings Total": place.get("userRatingsTotal"),
+                    "Price Level": place.get("priceLevel"),
+                    "Opening Hours": place.get("openingHours", {}).get("weekday_text"),
+                    "Website": place.get("website"),
+                    "Phone Number": place.get("formattedPhoneNumber"),
+                    "International Phone Number": place.get("internationalPhoneNumber"),
+                    "Google Maps URL": place.get("url"),
+                    "Google Maps Place ID": place.get("place_id"),
+                    "Google Maps Reference": place.get("reference"),
+                    "Google Maps Scope": place.get("scope"),
+                    "Vicinity": place.get("vicinity"),
+                    "Icon": place.get("icon"),
+                    "ID": place.get("id"),
+                    "Permanently Closed": place.get("permanentlyClosed"),
+                    "UTC Offset": place.get("utc_offset"),
+                    "Photos": place.get("photos"),
+                    "Altitude": place.get("geometry", {}).get("location", {}).get("alt"),
+                    
                     "Latitude": place.get("geometry", {}).get("location", {}).get("lat"),
                     "Longitude": place.get("geometry", {}).get("location", {}).get("lng")
                 } for place in places]  # `places` should be defined elsewhere in your actual request handling
