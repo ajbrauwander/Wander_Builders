@@ -302,6 +302,17 @@ def download_link(object_to_download, download_filename, download_link_text):
     b64 = base64.b64encode(object_to_download.encode()).decode()
     return f'<a href="data:text/json;base64,{b64}" download="{download_filename}"> {download_link_text} </a>'
 
+def csv_download_link(object_to_download, download_filename, download_link_text):
+    """
+    Generates a link to download the given object_to_download.
+    """
+    if isinstance(object_to_download, pd.DataFrame):
+        object_to_download = object_to_download.to_csv(index=False)
+
+    b64 = base64.b64encode(object_to_download.encode()).decode()
+    return f'<a href="data:text/csv;base64,{b64}" download="{download_filename}"> {download_link_text} </a>'
+
+
 def fetch_google_places(api_url, params):
     all_places = []
     next_page_token = None
@@ -428,11 +439,18 @@ def search_pois():
 
             # Convert to GeoJSON
             geojson_str = gdf_dissolved.to_json()
+            csv_text = gdf_dissolved.to_csv(index=False)
 
-            # Generate download link
+            # Generate download link for the GeoJSON file
             b64 = base64.b64encode(geojson_str.encode()).decode()
-            href = f'<a href="data:file/json;base64,{b64}" download="{place_name}_{selected_categories}_POIs.geojson">Download GeoJSON file</a>'
+            href = f'<a href="data:file/json;base64,{b64}" download="{place_name}_{selected_categories}_OSM_POIs.geojson">Download GeoJSON file</a>'
             st.markdown(href, unsafe_allow_html=True)
+
+            # Generate download link for the CSV file
+            b64 = base64.b64encode(csv_text.encode()).decode()
+            href = f'<a href="data:file/json;base64,{b64}" download="{place_name}_{selected_categories}_OSM_POIs.csv">Download CSV file</a>'
+            st.markdown(href, unsafe_allow_html=True)
+
 
         elif search_type == "Google POIs" and place_name:
             places = search_google_pois(place_name, wander_key, selected_types)
@@ -458,7 +476,24 @@ def search_pois():
                 b64 = base64.b64encode(geojson_str.encode()).decode()
                 href = f'<a href="data:file/json;base64,{b64}" download="{place_name}_{selected_types}_Google_POIs.geojson">Download GeoJSON file</a>'
                 st.markdown(href, unsafe_allow_html=True)
-                
+
+##############################
+
+                # Convert each place to a simplified dictionary for CSV conversion
+                places_dicts = [{
+                    "Name": place.get("name"),
+                    "Latitude": place.get("geometry", {}).get("location", {}).get("lat"),
+                    "Longitude": place.get("geometry", {}).get("location", {}).get("lng")
+                } for place in places]  # `places` should be defined elsewhere in your actual request handling
+
+                # Create a DataFrame
+                df = pd.DataFrame(places_dicts)
+
+                # Generate download link for the CSV
+                href = csv_download_link(df, f"{place_name.replace(' ', '_')}_{selected_types}_Google_POIs.csv", "Download CSV")
+                st.markdown(href, unsafe_allow_html=True)
+
+##############################
             else:
                 st.write("No POIs found.")
 
