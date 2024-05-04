@@ -21,7 +21,8 @@ import base64
 import requests
 import time
 
-wander_key = 'AIzaSyD6XxLeRgR8ZiGdKSwayaPEDn2GGkiHOyc'
+
+wander_key = os.getenv('wander_key')
 
 # Function to extract coordinates from KML
 def extract_coordinates(coordinates):

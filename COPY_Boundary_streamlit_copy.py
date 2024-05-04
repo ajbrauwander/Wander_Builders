@@ -45,7 +45,7 @@ import json
     # "transit_station", "travel_agency", "university", "veterinary_care", "zoo"]
 
 
-wander_key = 'AIzaSyD6XxLeRgR8ZiGdKSwayaPEDn2GGkiHOyc'  # Wander
+wander_key = os.getenv('wander_key')
 
 
 # Function to extract coordinates from KML
