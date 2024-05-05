@@ -22,6 +22,7 @@ import requests
 import time
 import logging
 import json
+from PIL import Image
 
 
     # google_types = [
@@ -45,8 +46,61 @@ import json
     # "transit_station", "travel_agency", "university", "veterinary_care", "zoo"]
 
 
-# wander_key = os.getenv('wander_key')
-wander_key = st.secrets["wander_key"]
+wander_key_ = os.getenv('wander_key')
+# wander_key_ = st.secrets["wander_key"]
+
+####### Developer Section ########
+
+def load_image(image_file):
+    img = Image.open(image_file)
+    return img
+
+def developer_section():
+    st.title('Developer Profile')
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.header("Hello, I'm Kareem!")
+        st.image(load_image('Photo2.jpeg'), width=300)  # Adjust path and size as needed
+    
+    with col2:
+        st.write("""
+        - **GIS Developer** with four years on Upwork.
+        - **Expertise**:
+            - **Custom GIS Tools Creation**
+            - **Spatial Data Analysis**
+            - **Geospatial Web Development**
+            - **Geocoding and Routing**
+            - **Data Visualization**
+            - **OSMNX** for street network analysis
+            - **GeoPandas** for spatial data manipulation
+            - **Folium and Leaflet** for interactive maps
+            - **QGIS and Mapbox**
+            - **PostgreSQL and Django**
+            - **Google Maps API**
+            - **Streamlit** for web apps
+        """)
+    
+    st.markdown("""
+    **Connect with me on Social Media:**
+    - [LinkedIn](https://www.linkedin.com/in/kareem-alaraby-59a251108/)
+    - [GitHub](https://github.com/TheOther-Guy)
+   
+    """)
+    # Encode the download link for your resume or portfolio
+    # with open("path_to_resume.pdf", "rb") as file:
+    #     btn = st.download_button(
+    #         label="Download My Resume",
+    #         data=file,
+    #         file_name="Kareem_Resume.pdf",
+    #         mime="application/octet-stream"
+    #     )
+
+    if st.button('Back to Home'):
+        st.session_state.operation = None
+        st.experimental_rerun()
+####### End Developer Section ########
 
 
 # Function to extract coordinates from KML
@@ -571,11 +625,11 @@ def main():
             elif st.button("Convert KML to GeoJSON", key='convert_kml'):
                 st.session_state.operation = "convert_kml"
                 st.experimental_rerun()
-            # elif st.button("Bulk POIs", key='bulk_pois'):
-            #     st.session_state.operation = "bulk_pois"
-            #     st.experimental_rerun()
             elif st.button("Search POIs", key='search_pois'):
                 st.session_state.operation = "search_pois"
+                st.experimental_rerun()
+            elif st.button("Developer Profile", key='developer_profile'):
+                st.session_state.operation = "developer_profile"
                 st.experimental_rerun()
 
     # Initialize session state for selecting operations
@@ -587,20 +641,16 @@ def main():
         display_boundary_page()
     elif st.session_state.operation == "convert_kml":
         convert_kml_to_geojson()
-    # elif st.session_state.operation == "bulk_pois":
-    #     bulk_pois_processing()
     elif st.session_state.operation == "search_pois":
         search_pois()
+    elif st.session_state.operation == "developer_profile":
+        developer_section()  # This is the function you will write to display the developer profile
     else:
         choose_operation()
 
-    # Back to Home button to reset the operation
-    # if st.button('Back to Home', key='back_to_home'):
-    #     st.session_state.operation = None
-    #     st.experimental_rerun()
-
 if __name__ == "__main__":
     main()
+
 
 
 
