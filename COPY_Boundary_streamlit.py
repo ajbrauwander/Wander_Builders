@@ -23,7 +23,7 @@ import time
 
 
 # wander_key = os.getenv('wander_key')
-wander_key = st.secrets["wander_key"]
+wander_key_ = st.secrets["wander_key"]
 
 # Function to extract coordinates from KML
 def extract_coordinates(coordinates):
@@ -455,7 +455,7 @@ def search_pois():
 
 
         elif search_type == "Google POIs" and place_name:
-            places = search_google_pois(place_name, wander_key, selected_types)
+            places = search_google_pois(place_name, wander_key_, selected_types)
             if places:
                 # Process places to a GeoJSON format
                 features = [{
