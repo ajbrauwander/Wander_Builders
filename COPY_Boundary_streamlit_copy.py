@@ -44,7 +44,7 @@ import json
     # "supermarket", "synagogue", "taxi_stand", "tourist_attraction", "train_station",
     # "transit_station", "travel_agency", "university", "veterinary_care", "zoo"]
 
-
+# wander_key = st.secrets["wander_key"]
 wander_key = os.getenv('wander_key')
 
 
