@@ -22,7 +22,8 @@ import requests
 import time
 
 
-wander_key = os.getenv('wander_key')
+# wander_key = os.getenv('wander_key')
+wander_key = st.secrets["wander_key"]
 
 # Function to extract coordinates from KML
 def extract_coordinates(coordinates):
