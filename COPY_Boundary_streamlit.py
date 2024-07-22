@@ -64,19 +64,22 @@ else:
         """
         Convert DMS (degrees, minutes, seconds) format to decimal degrees.
         """
-        parts = re.split('[°\'"]+', dms_str)
-        if len(parts) >= 3:
-            degrees = float(parts[0])
-            minutes = float(parts[1])
-            seconds = float(parts[2])
-            direction = dms_str[-1]
-            decimal = degrees + minutes / 60 + seconds / 3600
-            if direction in ['W', 'S']:
-                decimal = -decimal
-            return decimal
-        else:
+        try:
+            parts = re.split('[°\'"]+', dms_str.strip())
+            if len(parts) >= 3:
+                degrees = float(parts[0])
+                minutes = float(parts[1])
+                seconds = float(parts[2])
+                direction = dms_str[-1]
+                decimal = degrees + minutes / 60 + seconds / 3600
+                if direction in ['W', 'S']:
+                    decimal = -decimal
+                return decimal
+            else:
+                return None
+        except Exception as e:
+            st.warning(f"Error converting DMS to decimal: {e}")
             return None
-
 
     def geocode_address(address, api_key):
         url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
@@ -152,8 +155,8 @@ else:
                         df.drop(columns=['Coordinates'], inplace=True)
                     else:
                         if coord_format == "W, N":
-                            df['lat'] = df['n'].apply(dms_to_decimal)
-                            df['lon'] = df['w'].apply(dms_to_decimal)
+                            df['lat'] = df['n'].astype(str).apply(dms_to_decimal)
+                            df['lon'] = df['w'].astype(str).apply(dms_to_decimal)
                             df['Address'] = df.apply(lambda row: reverse_geocode(row['lat'], row['lon'], wander_key_), axis=1)
                         else:
                             df['Address'] = df.apply(lambda row: reverse_geocode(row[0], row[1], wander_key_), axis=1)
@@ -162,7 +165,7 @@ else:
                     df.to_excel("output.xlsx", index=False)
                     st.success("File processed successfully. Download the output file below.")
                     st.download_button(label="Download Output", data=df.to_excel(index=False), file_name="output.xlsx")
-        
+
         if st.button('Back to Home'):
             st.session_state.operation = None
             st.experimental_rerun()
