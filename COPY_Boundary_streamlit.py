@@ -162,9 +162,21 @@ else:
                             df['Address'] = df.apply(lambda row: reverse_geocode(row[0], row[1], wander_key_), axis=1)
 
                     st.write(df)
-                    df.to_excel("output.xlsx", index=False)
+
+                    # Save the DataFrame to a BytesIO object
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        df.to_excel(writer, index=False, sheet_name='Sheet1')
+                        writer.save()
+                    output.seek(0)
+
                     st.success("File processed successfully. Download the output file below.")
-                    st.download_button(label="Download Output", data=df.to_excel(index=False), file_name="output.xlsx")
+                    st.download_button(
+                        label="Download Output",
+                        data=output,
+                        file_name="output.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
 
         if st.button('Back to Home'):
             st.session_state.operation = None
