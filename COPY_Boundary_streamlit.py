@@ -20,13 +20,14 @@ import shutil
 import base64
 import requests
 import time
-
+import re
 
 # wander_key_ = os.getenv('wander_key')
 wander_key_ = st.secrets["wander_key"]
 
 USERNAME = st.secrets["USERNAME"]
 PASSWORD = st.secrets["PASSWORD"]
+
 
 # Function to handle login
 def login(username, password):
@@ -56,6 +57,117 @@ else:
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
         st.sidebar.warning("Logged out")
+
+    ############# geocoding ##############
+
+    def dms_to_decimal(dms_str):
+        """
+        Convert DMS (degrees, minutes, seconds) format to decimal degrees.
+        """
+        parts = re.split('[°\'"]+', dms_str)
+        if len(parts) >= 3:
+            degrees = float(parts[0])
+            minutes = float(parts[1])
+            seconds = float(parts[2])
+            direction = dms_str[-1]
+            decimal = degrees + minutes / 60 + seconds / 3600
+            if direction in ['W', 'S']:
+                decimal = -decimal
+            return decimal
+        else:
+            return None
+
+
+    def geocode_address(address, api_key):
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
+        response = requests.get(url).json()
+        if response['status'] == 'OK':
+            location = response['results'][0]['geometry']['location']
+            return location['lat'], location['lng']
+        else:
+            return None, None
+
+    def reverse_geocode(lat, lng, api_key):
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&key={api_key}"
+        response = requests.get(url).json()
+        if response['status'] == 'OK':
+            address = response['results'][0]['formatted_address']
+            return address
+        else:
+            return None
+
+    def geocoding_page():
+        st.title("Geocoding & Reverse Geocoding")
+
+        option = st.selectbox("Choose an option", ["Geocoding", "Reverse Geocoding"])
+        coord_format = st.selectbox("Coordinate Format", ["W, N", "lat, lng"])
+        query_type = st.radio("Query Type", ["Single Query", "Upload File"])
+
+        if query_type == "Single Query":
+            if option == "Geocoding":
+                address = st.text_input("Enter the address:")
+                if st.button("Geocode"):
+                    lat, lng = geocode_address(address, wander_key_)
+                    if lat and lng:
+                        st.write(f"Coordinates: {lat}, {lng}")
+                    else:
+                        st.write("Address not found.")
+            else:
+                if coord_format == "W, N":
+                    w = st.text_input("Enter longitude (W):")
+                    n = st.text_input("Enter latitude (N):")
+                    if st.button("Reverse Geocode"):
+                        lat = dms_to_decimal(n)
+                        lon = dms_to_decimal(w)
+                        if lat and lon:
+                            address = reverse_geocode(lat, lon, wander_key_)
+                            if address:
+                                st.write(f"Address: {address}")
+                            else:
+                                st.write("Coordinates not found.")
+                        else:
+                            st.write("Invalid DMS coordinates.")
+                else:
+                    lat = st.number_input("Enter latitude:")
+                    lon = st.number_input("Enter longitude:")
+                    if st.button("Reverse Geocode"):
+                        address = reverse_geocode(lat, lon, wander_key_)
+                        if address:
+                            st.write(f"Address: {address}")
+                        else:
+                            st.write("Coordinates not found.")
+        else:
+            uploaded_file = st.file_uploader("Choose a file", type=["csv", "xlsx"])
+            if uploaded_file:
+                if "csv" in uploaded_file.name:
+                    df = pd.read_csv(uploaded_file)
+                else:
+                    df = pd.read_excel(uploaded_file)
+
+                if st.button("Process"):
+                    if option == "Geocoding":
+                        df['Coordinates'] = df.iloc[:, 0].apply(lambda addr: geocode_address(addr, wander_key_))
+                        df['Latitude'] = df['Coordinates'].apply(lambda x: x[0])
+                        df['Longitude'] = df['Coordinates'].apply(lambda x: x[1])
+                        df.drop(columns=['Coordinates'], inplace=True)
+                    else:
+                        if coord_format == "W, N":
+                            df['lat'] = df['n'].apply(dms_to_decimal)
+                            df['lon'] = df['w'].apply(dms_to_decimal)
+                            df['Address'] = df.apply(lambda row: reverse_geocode(row['lat'], row['lon'], wander_key_), axis=1)
+                        else:
+                            df['Address'] = df.apply(lambda row: reverse_geocode(row[0], row[1], wander_key_), axis=1)
+
+                    st.write(df)
+                    df.to_excel("output.xlsx", index=False)
+                    st.success("File processed successfully. Download the output file below.")
+                    st.download_button(label="Download Output", data=df.to_excel(index=False), file_name="output.xlsx")
+        
+        if st.button('Back to Home'):
+            st.session_state.operation = None
+            st.experimental_rerun()
+
+    ########### end geocoding ############
 
     # Function to extract coordinates from KML
     def extract_coordinates(coordinates):
@@ -487,7 +599,7 @@ else:
 
 
             elif search_type == "Google POIs" and place_name:
-                places = search_google_pois(place_name, wander_key_, selected_types)
+                places = search_google_pois(place_name, google_api_key, selected_types)
                 if places:
                     # Process places to a GeoJSON format
                     features = [{
@@ -543,9 +655,7 @@ else:
 
     def main():
         st.title("Wander Builders")
-        
-        # Define actions for each operation within the app
-        # Function for operation selection
+
         def choose_operation():
             st.write("Choose Operation from the Sidebar")
             with st.sidebar:
@@ -555,37 +665,26 @@ else:
                 elif st.button("Convert KML to GeoJSON", key='convert_kml'):
                     st.session_state.operation = "convert_kml"
                     st.experimental_rerun()
-                # elif st.button("Bulk POIs", key='bulk_pois'):
-                #     st.session_state.operation = "bulk_pois"
-                #     st.experimental_rerun()
                 elif st.button("Search POIs", key='search_pois'):
                     st.session_state.operation = "search_pois"
                     st.experimental_rerun()
+                elif st.button("Geocoding & Reverse Geocoding", key='geocoding'):
+                    st.session_state.operation = "geocoding"
+                    st.experimental_rerun()
 
-        # Initialize session state for selecting operations
         if "operation" not in st.session_state:
             st.session_state.operation = None
 
-        # Operation execution based on selection
         if st.session_state.operation == "boundary":
             display_boundary_page()
         elif st.session_state.operation == "convert_kml":
             convert_kml_to_geojson()
-        # elif st.session_state.operation == "bulk_pois":
-        #     bulk_pois_processing()
         elif st.session_state.operation == "search_pois":
             search_pois()
+        elif st.session_state.operation == "geocoding":
+            geocoding_page()
         else:
             choose_operation()
 
-        # Back to Home button to reset the operation
-        # if st.button('Back to Home', key='back_to_home'):
-        #     st.session_state.operation = None
-        #     st.experimental_rerun()
-
     if __name__ == "__main__":
         main()
-
-
-
-

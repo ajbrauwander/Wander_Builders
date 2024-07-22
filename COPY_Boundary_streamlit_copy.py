@@ -20,37 +20,17 @@ import shutil
 import base64
 import requests
 import time
-import logging
-import json
-from PIL import Image
 
 
-    # google_types = [
-    # "accounting", "airport", "amusement_park", "aquarium", "art_gallery", "atm",
-    # "bakery", "bank", "bar", "beauty_salon", "bicycle_store", "book_store",
-    # "bowling_alley", "bus_station", "cafe", "campground", "car_dealer", "car_rental",
-    # "car_repair", "car_wash", "casino", "cemetery", "church", "city_hall",
-    # "clothing_store", "convenience_store", "courthouse", "dentist", "department_store",
-    # "doctor", "drugstore", "electrician", "electronics_store", "embassy",
-    # "fire_station", "florist", "funeral_home", "furniture_store", "gas_station", "gym",
-    # "hair_care", "hardware_store", "hindu_temple", "home_goods_store", "hospital",
-    # "insurance_agency", "jewelry_store", "laundry", "lawyer", "library",
-    # "light_rail_station", "liquor_store", "local_government_office", "locksmith",
-    # "lodging", "meal_delivery", "meal_takeaway", "mosque", "movie_rental",
-    # "movie_theater", "moving_company", "museum", "night_club", "painter", "park",
-    # "parking", "pet_store", "pharmacy", "physiotherapist", "plumber", "police",
-    # "post_office", "primary_school", "real_estate_agency", "restaurant",
-    # "roofing_contractor", "rv_park", "school", "secondary_school", "shoe_store",
-    # "shopping_mall", "spa", "stadium", "storage", "store", "subway_station",
-    # "supermarket", "synagogue", "taxi_stand", "tourist_attraction", "train_station",
-    # "transit_station", "travel_agency", "university", "veterinary_care", "zoo"]
-
-
-wander_key_ = os.getenv('wander_key')
+# wander_key_ = os.getenv('wander_key')
 # wander_key_ = st.secrets["wander_key"]
 
-USERNAME = ""
-PASSWORD = ""
+# USERNAME = st.secrets["USERNAME"]
+# PASSWORD = st.secrets["PASSWORD"]
+
+google_api_key = "AIzaSyD6XxLeRgR8ZiGdKSwayaPEDn2GGkiHOyc"
+USERNAME = "wander"
+PASSWORD = "Ajbrau"
 
 # Function to handle login
 def login(username, password):
@@ -81,58 +61,117 @@ else:
         st.session_state.logged_in = False
         st.sidebar.warning("Logged out")
 
-    # APP CODE
-    def load_image(image_file):
-        img = Image.open(image_file)
-        return img
+    ############# geocoding ##############
+    import re
 
-    def developer_section():
-        st.title('Developer Profile')
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.header("Hello, I'm Kareem!")
-            st.image(load_image('Photo2.jpeg'), width=300)  # Adjust path and size as needed
-        
-        with col2:
-            st.write("""
-            - **GIS Developer** with four years on Upwork.
-            - **Expertise**:
-                - **Custom GIS Tools Creation**
-                - **Spatial Data Analysis**
-                - **Geospatial Web Development**
-                - **Geocoding and Routing**
-                - **Data Visualization**
-                - **OSMNX** for street network analysis
-                - **GeoPandas** for spatial data manipulation
-                - **Folium and Leaflet** for interactive maps
-                - **QGIS and Mapbox**
-                - **PostgreSQL and Django**
-                - **Google Maps API**
-                - **Streamlit** for web apps
-            """)
-        
-        st.markdown("""
-        **Connect with me on Social Media:**
-        - [LinkedIn](https://www.linkedin.com/in/kareem-alaraby-59a251108/)
-        - [GitHub](https://github.com/TheOther-Guy)
-    
-        """)
-        # Encode the download link for your resume or portfolio
-        # with open("path_to_resume.pdf", "rb") as file:
-        #     btn = st.download_button(
-        #         label="Download My Resume",
-        #         data=file,
-        #         file_name="Kareem_Resume.pdf",
-        #         mime="application/octet-stream"
-        #     )
+    def dms_to_decimal(dms_str):
+        """
+        Convert DMS (degrees, minutes, seconds) format to decimal degrees.
+        """
+        parts = re.split('[°\'"]+', dms_str)
+        if len(parts) >= 3:
+            degrees = float(parts[0])
+            minutes = float(parts[1])
+            seconds = float(parts[2])
+            direction = dms_str[-1]
+            decimal = degrees + minutes / 60 + seconds / 3600
+            if direction in ['W', 'S']:
+                decimal = -decimal
+            return decimal
+        else:
+            return None
 
+
+    def geocode_address(address, api_key):
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
+        response = requests.get(url).json()
+        if response['status'] == 'OK':
+            location = response['results'][0]['geometry']['location']
+            return location['lat'], location['lng']
+        else:
+            return None, None
+
+    def reverse_geocode(lat, lng, api_key):
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&key={api_key}"
+        response = requests.get(url).json()
+        if response['status'] == 'OK':
+            address = response['results'][0]['formatted_address']
+            return address
+        else:
+            return None
+
+    def geocoding_page():
+        st.title("Geocoding & Reverse Geocoding")
+
+        option = st.selectbox("Choose an option", ["Geocoding", "Reverse Geocoding"])
+        coord_format = st.selectbox("Coordinate Format", ["W, N", "lat, lng"])
+        query_type = st.radio("Query Type", ["Single Query", "Upload File"])
+
+        if query_type == "Single Query":
+            if option == "Geocoding":
+                address = st.text_input("Enter the address:")
+                if st.button("Geocode"):
+                    lat, lng = geocode_address(address, google_api_key)
+                    if lat and lng:
+                        st.write(f"Coordinates: {lat}, {lng}")
+                    else:
+                        st.write("Address not found.")
+            else:
+                if coord_format == "W, N":
+                    w = st.text_input("Enter longitude (W):")
+                    n = st.text_input("Enter latitude (N):")
+                    if st.button("Reverse Geocode"):
+                        lat = dms_to_decimal(n)
+                        lon = dms_to_decimal(w)
+                        if lat and lon:
+                            address = reverse_geocode(lat, lon, google_api_key)
+                            if address:
+                                st.write(f"Address: {address}")
+                            else:
+                                st.write("Coordinates not found.")
+                        else:
+                            st.write("Invalid DMS coordinates.")
+                else:
+                    lat = st.number_input("Enter latitude:")
+                    lon = st.number_input("Enter longitude:")
+                    if st.button("Reverse Geocode"):
+                        address = reverse_geocode(lat, lon, google_api_key)
+                        if address:
+                            st.write(f"Address: {address}")
+                        else:
+                            st.write("Coordinates not found.")
+        else:
+            uploaded_file = st.file_uploader("Choose a file", type=["csv", "xlsx"])
+            if uploaded_file:
+                if "csv" in uploaded_file.name:
+                    df = pd.read_csv(uploaded_file)
+                else:
+                    df = pd.read_excel(uploaded_file)
+
+                if st.button("Process"):
+                    if option == "Geocoding":
+                        df['Coordinates'] = df.iloc[:, 0].apply(lambda addr: geocode_address(addr, google_api_key))
+                        df['Latitude'] = df['Coordinates'].apply(lambda x: x[0])
+                        df['Longitude'] = df['Coordinates'].apply(lambda x: x[1])
+                        df.drop(columns=['Coordinates'], inplace=True)
+                    else:
+                        if coord_format == "W, N":
+                            df['lat'] = df['n'].apply(dms_to_decimal)
+                            df['lon'] = df['w'].apply(dms_to_decimal)
+                            df['Address'] = df.apply(lambda row: reverse_geocode(row['lat'], row['lon'], google_api_key), axis=1)
+                        else:
+                            df['Address'] = df.apply(lambda row: reverse_geocode(row[0], row[1], google_api_key), axis=1)
+
+                    st.write(df)
+                    df.to_excel("output.xlsx", index=False)
+                    st.success("File processed successfully. Download the output file below.")
+                    st.download_button(label="Download Output", data=df.to_excel(index=False), file_name="output.xlsx")
+        
         if st.button('Back to Home'):
             st.session_state.operation = None
             st.experimental_rerun()
-    ####### End Developer Section ########
 
+    ########### end geocoding ############
 
     # Function to extract coordinates from KML
     def extract_coordinates(coordinates):
@@ -399,9 +438,9 @@ else:
             return True
         except:
             return False
-
-    ####################
-    ####################
+        
+    ################
+    ################
 
     def download_link(object_to_download, download_filename, download_link_text):
         """
@@ -413,7 +452,6 @@ else:
         b64 = base64.b64encode(object_to_download.encode()).decode()
         return f'<a href="data:text/json;base64,{b64}" download="{download_filename}"> {download_link_text} </a>'
 
-
     def csv_download_link(object_to_download, download_filename, download_link_text):
         """
         Generates a link to download the given object_to_download.
@@ -423,7 +461,6 @@ else:
 
         b64 = base64.b64encode(object_to_download.encode()).decode()
         return f'<a href="data:text/csv;base64,{b64}" download="{download_filename}"> {download_link_text} </a>'
-
 
 
     def fetch_google_places(api_url, params):
@@ -566,7 +603,7 @@ else:
 
 
             elif search_type == "Google POIs" and place_name:
-                places = search_google_pois(place_name, wander_key_, selected_types)
+                places = search_google_pois(place_name, google_api_key, selected_types)
                 if places:
                     # Process places to a GeoJSON format
                     features = [{
@@ -595,28 +632,6 @@ else:
                     # Convert each place to a simplified dictionary for CSV conversion
                     places_dicts = [{
                         "Name": place.get("name"),
-                        "Address": place.get("vicinity"),
-                        "Type": place.get("types"),
-                        "Rating": place.get("rating"),
-                        # "Address": place.get("formattedAddress"),
-                        "Status": place.get("businessStatus"),
-                        "User Ratings Total": place.get("userRatingsTotal"),
-                        "Price Level": place.get("priceLevel"),
-                        "Opening Hours": place.get("openingHours", {}).get("weekday_text"),
-                        "Website": place.get("website"),
-                        "Phone Number": place.get("formattedPhoneNumber"),
-                        "International Phone Number": place.get("internationalPhoneNumber"),
-                        "Google Maps URL": place.get("url"),
-                        "Google Maps Place ID": place.get("place_id"),
-                        "Google Maps Reference": place.get("reference"),
-                        "Google Maps Scope": place.get("scope"),
-                        "Icon": place.get("icon"),
-                        "ID": place.get("id"),
-                        "Permanently Closed": place.get("permanentlyClosed"),
-                        "UTC Offset": place.get("utc_offset"),
-                        "Photos": place.get("photos"),
-                        "Altitude": place.get("geometry", {}).get("location", {}).get("alt"),
-                        
                         "Latitude": place.get("geometry", {}).get("location", {}).get("lat"),
                         "Longitude": place.get("geometry", {}).get("location", {}).get("lng")
                     } for place in places]  # `places` should be defined elsewhere in your actual request handling
@@ -644,9 +659,7 @@ else:
 
     def main():
         st.title("Wander Builders")
-        
-        # Define actions for each operation within the app
-        # Function for operation selection
+
         def choose_operation():
             st.write("Choose Operation from the Sidebar")
             with st.sidebar:
@@ -659,30 +672,23 @@ else:
                 elif st.button("Search POIs", key='search_pois'):
                     st.session_state.operation = "search_pois"
                     st.experimental_rerun()
-                elif st.button("Developer Profile", key='developer_profile'):
-                    st.session_state.operation = "developer_profile"
+                elif st.button("Geocoding & Reverse Geocoding", key='geocoding'):
+                    st.session_state.operation = "geocoding"
                     st.experimental_rerun()
 
-        # Initialize session state for selecting operations
         if "operation" not in st.session_state:
             st.session_state.operation = None
 
-        # Operation execution based on selection
         if st.session_state.operation == "boundary":
             display_boundary_page()
         elif st.session_state.operation == "convert_kml":
             convert_kml_to_geojson()
         elif st.session_state.operation == "search_pois":
             search_pois()
-        elif st.session_state.operation == "developer_profile":
-            developer_section()  # This is the function you will write to display the developer profile
+        elif st.session_state.operation == "geocoding":
+            geocoding_page()
         else:
             choose_operation()
 
     if __name__ == "__main__":
         main()
-
-
-
-
-
