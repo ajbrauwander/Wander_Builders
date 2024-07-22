@@ -60,6 +60,24 @@ else:
 
     ############# geocoding ##############
 
+    def geocode_address(address, api_key):
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
+        response = requests.get(url).json()
+        if response['status'] == 'OK':
+            location = response['results'][0]['geometry']['location']
+            return location['lat'], location['lng']
+        else:
+            return None, None
+
+    def reverse_geocode(lat, lng, api_key):
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&key={api_key}"
+        response = requests.get(url).json()
+        if response['status'] == 'OK':
+            address = response['results'][0]['formatted_address']
+            return address
+        else:
+            return None
+
     def dms_to_decimal(dms_str):
         """
         Convert DMS (degrees, minutes, seconds) format to decimal degrees.
@@ -79,24 +97,6 @@ else:
                 return None
         except Exception as e:
             st.warning(f"Error converting DMS to decimal: {e}")
-            return None
-
-    def geocode_address(address, api_key):
-        url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
-        response = requests.get(url).json()
-        if response['status'] == 'OK':
-            location = response['results'][0]['geometry']['location']
-            return location['lat'], location['lng']
-        else:
-            return None, None
-
-    def reverse_geocode(lat, lng, api_key):
-        url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&key={api_key}"
-        response = requests.get(url).json()
-        if response['status'] == 'OK':
-            address = response['results'][0]['formatted_address']
-            return address
-        else:
             return None
 
     def geocoding_page():
@@ -614,7 +614,7 @@ else:
 
 
             elif search_type == "Google POIs" and place_name:
-                places = search_google_pois(place_name, google_api_key, selected_types)
+                places = search_google_pois(place_name, wander_key_, selected_types)
                 if places:
                     # Process places to a GeoJSON format
                     features = [{

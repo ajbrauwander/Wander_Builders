@@ -13,3 +13,4 @@ numpy==1.24.2
 pandas==1.5.3
 openpyxl==3.0.7
 requests==2.27.0
+xlsxwriter
