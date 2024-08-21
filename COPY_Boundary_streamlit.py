@@ -12,15 +12,16 @@ from matplotlib import style
 # import folium
 import base64
 import pandas as pd
+import numpy as np
 import time
 from shapely.geometry import Point
 import random
-from shapely.geometry import MultiLineString, LineString
+from shapely.geometry import MultiLineString, LineString, shape, Point
+from shapely.ops import split
 import shutil
-import base64
 import requests
-import time
 import re
+from datetime import datetime
 
 # wander_key_ = os.getenv('wander_key')
 wander_key_ = st.secrets["wander_key"]
@@ -663,6 +664,226 @@ else:
         if st.button('Back to Home'):
             st.session_state.operation = None
             st.experimental_rerun()
+    ##################
+# search POIs page
+
+
+    def convert_arcgis_paths_to_geojson(arcgis_geom):
+        """
+        Converts an ArcGIS 'paths' geometry object to a GeoJSON structure.
+        
+        Parameters:
+        arcgis_geom (dict): A dictionary containing the ArcGIS geometry with 'paths'.
+        
+        Returns:
+        dict: A GeoJSON geometry dictionary.
+        """
+        paths = arcgis_geom.get('paths', [])
+
+        if len(paths) == 1:
+            geojson_geom = LineString(paths[0])
+        else:
+            geojson_geom = MultiLineString(paths)
+
+        return geojson_geom
+
+    def query_api(endpoint, params):
+        try:
+            response = requests.get(endpoint, params=params)
+            response.raise_for_status()
+            data = response.json()
+            return data
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error querying API: {e}")
+            return None
+
+    def check_far_splitted(geometry, threshold=50):
+        """
+        Check if any segments in the LineString or MultiLineString geometry are far splitted.
+        
+        Parameters:
+        geometry: Shapely geometry (LineString or MultiLineString)
+        threshold: Distance in meters beyond which segments are considered far-splitted
+        
+        Returns:
+        str: 'yes' if the geometry is far splitted, 'no' otherwise.
+        """
+        if isinstance(geometry, LineString):
+            segments = [geometry]
+        elif isinstance(geometry, MultiLineString):
+            segments = list(geometry.geoms)
+        else:
+            return 'no'  # If not a LineString or MultiLineString
+
+        for i in range(len(segments) - 1):
+            # Get the end point of the current segment and the start point of the next segment
+            end_point = segments[i].coords[-1]
+            start_point = segments[i + 1].coords[0]
+            
+            # Calculate the Euclidean distance between these points
+            distance = np.sqrt((end_point[0] - start_point[0])**2 + (end_point[1] - start_point[1])**2)
+            
+            if distance > threshold:
+                return 'yes'
+
+        return 'no'
+
+    def query_apis_page():
+        st.title("Query APIs")
+
+        # Dropdown menu for API selection
+        api_choice = st.selectbox(
+            "Select API to Query:",
+            ("Greenways API", "Multi Use Paths API")
+        )
+
+        # Input for Layer ID
+        layer_id = st.text_input("Enter Layer ID:", value="0")
+
+        # Determine the endpoint based on user selection
+        if api_choice == "Greenways API":
+            endpoint = f"https://twfgis.wakeforestnc.gov/server/rest/services/Greenways_Wake_Forest/MapServer/{layer_id}/query"
+            dissolve_column = "Name"
+        elif api_choice == "Multi Use Paths API":
+            endpoint = f"https://twfgis.wakeforestnc.gov/server/rest/services/MultiUsePath/MapServer/{layer_id}/query"
+            dissolve_column = "Street"
+
+        # Parameters to send with the API request
+        params = {
+            "where": "1=1",
+            "outFields": "*",
+            "f": "json"
+        }
+
+        # Query the API when the button is clicked
+        if st.button("Query API"):
+            data = query_api(endpoint, params)
+            if data:
+                st.success("API queried successfully!")
+
+                features = data['features']
+                geometries = []
+                attributes = []
+                spatial_ref = None
+
+                # Extract spatial reference information
+                if 'spatialReference' in data:
+                    spatial_ref = data['spatialReference']['latestWkid']
+                else:
+                    if 'features' in data and data['features']:
+                        spatial_ref = data['features'][0]['geometry'].get('spatialReference', {}).get('latestWkid', None)
+                
+                for feature in features:
+                    geom = feature['geometry']
+                    
+                    # Check if the geometry is valid
+                    if geom is None:
+                        continue
+                    
+                    try:
+                        # Convert geometry to GeoJSON
+                        if 'paths' in geom:
+                            geom_geojson = convert_arcgis_paths_to_geojson(geom)
+                        else:
+                            geom_geojson = shape(geom)
+                        
+                        shapely_geom = shape(geom_geojson)
+                        geometries.append(shapely_geom)
+                        attributes.append(feature['attributes'])
+                    except Exception as e:
+                        st.warning(f"Skipping a feature due to geometry processing error: {e}")
+                        continue
+
+                # Log the number of geometries and attributes
+                st.write(f"Number of geometries: {len(geometries)}")
+                st.write(f"Number of attributes: {len(attributes)}")
+
+                # Create a DataFrame for attributes
+                df = pd.DataFrame(attributes)
+
+                # Drop rows where the dissolve column is blank or NaN
+                mask = df[dissolve_column].notna()
+                df = df[mask]
+                geometries = [geometry for i, geometry in enumerate(geometries) if mask.iloc[i]]
+
+                # Ensure the number of geometries and attributes still match
+                if len(df) != len(geometries):
+                    st.error("Mismatch between number of geometries and attributes after processing. Please check the data.")
+                    return
+
+                # Create a GeoDataFrame by combining the attributes with the geometries
+                gdf = gpd.GeoDataFrame(df, geometry=geometries)
+
+                # Set the CRS based on the spatial reference from the API response
+                if spatial_ref:
+                    gdf.set_crs(epsg=spatial_ref, inplace=True)
+
+                # Perform the dissolve operation by the appropriate column
+                if dissolve_column in df.columns:
+                    dissolved_gdf = gdf.dissolve(by=dissolve_column, aggfunc='first')
+                    dissolved_gdf.reset_index(inplace=True)
+                else:
+                    st.warning(f"'{dissolve_column}' column not found. Skipping dissolve operation.")
+                    dissolved_gdf = gdf
+
+                # Rename 'Name' or 'Street' to 'name'
+                dissolved_gdf.rename(columns={dissolve_column: 'name'}, inplace=True)
+
+                # Convert 'name' column to lowercase
+                dissolved_gdf['name'] = dissolved_gdf['name'].str.lower()
+
+                # Define non-logical names to filter out
+                non_logical_names = [
+                    "no name trail", "unknown", "no name", "null", "undefined", 
+                    "trail", "n/a", "na", "-", "", None
+                ]
+
+                # Filter out rows with non-logical names
+                dissolved_gdf = dissolved_gdf[~dissolved_gdf['name'].isin(non_logical_names)]
+
+                # Check geometries for being far splitted
+                dissolved_gdf['far_splitted'] = dissolved_gdf['geometry'].apply(check_far_splitted)
+
+                # Transform the CRS to EPSG:4326 (WGS 84)
+                dissolved_gdf = dissolved_gdf.to_crs(epsg=4326)
+
+                # Generate a timestamp for the filename
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                # Create filenames based on the API name and timestamp
+                excel_filename = f"{api_choice.replace(' ', '_').lower()}_{timestamp}.xlsx"
+                geojson_filename = f"{api_choice.replace(' ', '_').lower()}_{timestamp}.geojson"
+
+                # Provide options to download the result as an Excel or GeoJSON file
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    dissolved_gdf.to_excel(writer, index=False, sheet_name='Sheet1')
+
+                output.seek(0)
+
+                st.download_button(
+                    label="Download as Excel",
+                    data=output,
+                    file_name=excel_filename,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+                # Convert the dissolved GeoDataFrame to GeoJSON format
+                geojson = dissolved_gdf.to_json()
+                st.download_button(
+                    label="Download as GeoJSON",
+                    data=geojson,
+                    file_name=geojson_filename,
+                    mime="application/json"
+                )
+
+
+
+
+
+        if st.button('Back to Home'):
+            st.session_state.operation = None
+            st.experimental_rerun()
 
 
     ##################
@@ -686,6 +907,9 @@ else:
                 elif st.button("Geocoding & Reverse Geocoding", key='geocoding'):
                     st.session_state.operation = "geocoding"
                     st.experimental_rerun()
+                elif st.button("Query APIs", key='query_apis'):  # New page
+                    st.session_state.operation = "query_apis"
+                    st.experimental_rerun()
 
         if "operation" not in st.session_state:
             st.session_state.operation = None
@@ -698,6 +922,8 @@ else:
             search_pois()
         elif st.session_state.operation == "geocoding":
             geocoding_page()
+        elif st.session_state.operation == "query_apis":  # New page
+            query_apis_page()
         else:
             choose_operation()
 
