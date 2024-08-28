@@ -713,13 +713,71 @@ else:
 
         return 'no'
 
+    def query_parks_facilities_api(endpoint, params):
+        """
+        Queries the Parks and Facilities API and returns a GeoDataFrame.
+        
+        Parameters:
+        - endpoint: The API endpoint URL.
+        - params: The parameters for the API request.
+        
+        Returns:
+        - gpd.GeoDataFrame: A GeoDataFrame with the queried data.
+        """
+        response = requests.get(endpoint, params=params)
+        data = response.json()
+
+        # Extract spatial reference information
+        if 'spatialReference' in data:
+            spatial_ref = data['spatialReference']['latestWkid']
+        else:
+            if 'features' in data and data['features']:
+                spatial_ref = data['features'][0]['geometry'].get('spatialReference', {}).get('latestWkid', None)
+        
+        # Extract features and create a list for geometries
+        features = data['features']
+        geometries = []
+        attributes = []
+
+        for feature in features:
+            geom = feature['geometry']
+            
+            # Handle None geometry
+            if geom is None:
+                continue  # Skip this feature if geometry is None
+
+            # Handle Point geometries (x and y coordinates)
+            if 'x' in geom and 'y' in geom:
+                geom_geojson = Point(geom['x'], geom['y'])
+            else:
+                continue  # Skip this feature if it doesn't have x and y coordinates
+
+            # Append the converted Shapely geometry
+            geometries.append(geom_geojson)
+            
+            # Extract the attributes
+            attributes.append(feature['attributes'])
+
+        # Create a DataFrame for attributes
+        df = pd.DataFrame(attributes)
+
+        # Create a GeoDataFrame by combining the attributes with the geometries
+        gdf = gpd.GeoDataFrame(df, geometry=geometries)
+
+        # Set the CRS based on the spatial reference from the API response
+        if spatial_ref:
+            gdf.set_crs(epsg=spatial_ref, inplace=True)
+        
+        return gdf
+
+
     def query_apis_page():
         st.title("Query APIs")
 
         # Dropdown menu for API selection
         api_choice = st.selectbox(
             "Select API to Query:",
-            ("Greenways API", "Multi Use Paths API")
+            ("Greenways API", "Multi Use Paths API", "Parks and Facilities API")
         )
 
         # Input for Layer ID
@@ -732,6 +790,9 @@ else:
         elif api_choice == "Multi Use Paths API":
             endpoint = f"https://twfgis.wakeforestnc.gov/server/rest/services/MultiUsePath/MapServer/{layer_id}/query"
             dissolve_column = "Street"
+        elif api_choice == "Parks and Facilities API":
+            endpoint = f"https://twfgis.wakeforestnc.gov/server/rest/services/ParksAndFacilities/MapServer/{layer_id}/query"
+            dissolve_column = None  # No need to dissolve for points
 
         # Parameters to send with the API request
         params = {
@@ -766,13 +827,20 @@ else:
                         continue
                     
                     try:
-                        # Convert geometry to GeoJSON
-                        if 'paths' in geom:
-                            geom_geojson = convert_arcgis_paths_to_geojson(geom)
-                        else:
-                            geom_geojson = shape(geom)
+                        # Convert geometry based on the API
+                        if api_choice == "Greenways API" or api_choice == "Multi Use Paths API":
+                            if 'paths' in geom:
+                                geom_geojson = convert_arcgis_paths_to_geojson(geom)
+                            else:
+                                geom_geojson = shape(geom)
+                            shapely_geom = shape(geom_geojson)
+                        elif api_choice == "Parks and Facilities API":
+                            if 'x' in geom and 'y' in geom:
+                                shapely_geom = Point(geom['x'], geom['y'])
+                            else:
+                                st.warning("Skipping a feature with unknown geometry format.")
+                                continue
                         
-                        shapely_geom = shape(geom_geojson)
                         geometries.append(shapely_geom)
                         attributes.append(feature['attributes'])
                     except Exception as e:
@@ -781,20 +849,21 @@ else:
 
                 # Log the number of geometries and attributes
                 st.write(f"Number of geometries: {len(geometries)}")
-                st.write(f"Number of attributes: {len(attributes)}")
+                # st.write(f"Number of attributes: {len(attributes)}")
 
                 # Create a DataFrame for attributes
                 df = pd.DataFrame(attributes)
 
-                # Drop rows where the dissolve column is blank or NaN
-                mask = df[dissolve_column].notna()
-                df = df[mask]
-                geometries = [geometry for i, geometry in enumerate(geometries) if mask.iloc[i]]
+                if dissolve_column:
+                    # Drop rows where the dissolve column is blank or NaN
+                    mask = df[dissolve_column].notna()
+                    df = df[mask]
+                    geometries = [geometry for i, geometry in enumerate(geometries) if mask.iloc[i]]
 
-                # Ensure the number of geometries and attributes still match
-                if len(df) != len(geometries):
-                    st.error("Mismatch between number of geometries and attributes after processing. Please check the data.")
-                    return
+                    # Ensure the number of geometries and attributes still match
+                    if len(df) != len(geometries):
+                        st.error("Mismatch between number of geometries and attributes after processing. Please check the data.")
+                        return
 
                 # Create a GeoDataFrame by combining the attributes with the geometries
                 gdf = gpd.GeoDataFrame(df, geometry=geometries)
@@ -803,31 +872,39 @@ else:
                 if spatial_ref:
                     gdf.set_crs(epsg=spatial_ref, inplace=True)
 
-                # Perform the dissolve operation by the appropriate column
-                if dissolve_column in df.columns:
-                    dissolved_gdf = gdf.dissolve(by=dissolve_column, aggfunc='first')
-                    dissolved_gdf.reset_index(inplace=True)
+                if dissolve_column:
+                    # Perform the dissolve operation by the appropriate column
+                    if dissolve_column in df.columns:
+                        dissolved_gdf = gdf.dissolve(by=dissolve_column, aggfunc='first')
+                        dissolved_gdf.reset_index(inplace=True)
+                    else:
+                        st.warning(f"'{dissolve_column}' column not found. Skipping dissolve operation.")
+                        dissolved_gdf = gdf
                 else:
-                    st.warning(f"'{dissolve_column}' column not found. Skipping dissolve operation.")
-                    dissolved_gdf = gdf
+                    dissolved_gdf = gdf  # For points, no dissolve needed
 
                 # Rename 'Name' or 'Street' to 'name'
-                dissolved_gdf.rename(columns={dissolve_column: 'name'}, inplace=True)
+                if dissolve_column:
+                    dissolved_gdf.rename(columns={dissolve_column: 'name'}, inplace=True)
+                elif api_choice == "Parks and Facilities API":
+                    dissolved_gdf.rename(columns={'LABEL': 'name'}, inplace=True)
+                    
+                # Convert 'name' column to lowercase and filter out non-logical names
+                if 'name' in dissolved_gdf.columns:
+                    dissolved_gdf['name'] = dissolved_gdf['name'].str.lower()
+                    non_logical_names = [
+                        "no name trail", "unknown", "no name", "null", "undefined", 
+                        "trail", "n/a", "na", "-", "", None
+                    ]
 
-                # Convert 'name' column to lowercase
-                dissolved_gdf['name'] = dissolved_gdf['name'].str.lower()
+                    dissolved_gdf = dissolved_gdf[~dissolved_gdf['name'].isin(non_logical_names)]
+                    
+                    # making name titles --> capitalizing each word
+                    dissolved_gdf['name'] = dissolved_gdf['name'].str.title()
 
-                # Define non-logical names to filter out
-                non_logical_names = [
-                    "no name trail", "unknown", "no name", "null", "undefined", 
-                    "trail", "n/a", "na", "-", "", None
-                ]
-
-                # Filter out rows with non-logical names
-                dissolved_gdf = dissolved_gdf[~dissolved_gdf['name'].isin(non_logical_names)]
-
-                # Check geometries for being far splitted
-                dissolved_gdf['far_splitted'] = dissolved_gdf['geometry'].apply(check_far_splitted)
+                if api_choice != "Parks and Facilities API":
+                    # Check geometries for being far splitted
+                    dissolved_gdf['far_splitted'] = dissolved_gdf['geometry'].apply(check_far_splitted)
 
                 # Transform the CRS to EPSG:4326 (WGS 84)
                 dissolved_gdf = dissolved_gdf.to_crs(epsg=4326)
@@ -861,9 +938,6 @@ else:
                     file_name=geojson_filename,
                     mime="application/json"
                 )
-
-
-
 
 
         if st.button('Back to Home'):
